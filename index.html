@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Neon Drift: Midnight Circuit</title>
+<style>
+  :root{
+    --neon-pink:#ff2ea6; --neon-cyan:#20e8ff; --neon-purple:#8a2eff;
+    --bg-void:#05030c; --panel:#0d0a1c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; background:var(--bg-void); overflow:hidden; font-family:'Rajdhani',Arial,sans-serif; color:#fff;}
+  @font-face{font-family:'Orbitron'; src:local('Orbitron');}
+  #canvas-wrap{position:fixed; inset:0;}
+  canvas{display:block; width:100%; height:100%;}
+
+  #menu{
+    position:fixed; inset:0; z-index:20;
+    background:
+      radial-gradient(ellipse at 50% 100%, rgba(138,46,255,0.35), transparent 60%),
+      linear-gradient(180deg, #1a0a2e 0%, #3a0f3f 45%, #6b1a2e 70%, #2a0a1a 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-start;
+    padding:4vh 4vw 2vh; overflow-y:auto;
+  }
+  #menu::before{
+    content:''; position:absolute; inset:0; pointer-events:none;
+    background: repeating-linear-gradient(90deg, rgba(0,0,0,0.15) 0 2px, transparent 2px 4px);
+    opacity:.15;
+  }
+  .skyline{position:absolute; bottom:0; left:0; right:0; height:40%; z-index:0; opacity:.8;}
+  h1.title{
+    font-family:'Orbitron',sans-serif; font-weight:900; letter-spacing:6px;
+    font-size:clamp(2.2rem,7vw,5rem); text-align:center; z-index:1;
+    color:#fff; text-shadow:0 0 10px var(--neon-cyan),0 0 30px var(--neon-purple),0 0 60px var(--neon-pink);
+    margin-top:2vh;
+  }
+  .subtitle{color:var(--neon-cyan); letter-spacing:3px; font-size:1.1rem; margin:.5rem 0 2rem; z-index:1; text-shadow:0 0 8px var(--neon-cyan);}
+  .menu-buttons{display:flex; flex-wrap:wrap; gap:14px; justify-content:center; z-index:1; margin-bottom:2.5rem;}
+  .nbtn{
+    padding:14px 28px; background:rgba(13,10,28,0.7); border:1px solid var(--neon-purple);
+    color:#fff; font-family:'Orbitron',sans-serif; font-size:.95rem; letter-spacing:2px;
+    border-radius:4px; cursor:pointer; transition:.2s; text-transform:uppercase;
+  }
+  .nbtn:hover{background:var(--neon-purple); box-shadow:0 0 20px var(--neon-pink); transform:translateY(-2px);}
+  .nbtn.primary{background:var(--neon-pink); border-color:var(--neon-pink); box-shadow:0 0 25px var(--neon-pink);}
+  .nbtn.primary:hover{background:var(--neon-cyan); border-color:var(--neon-cyan); box-shadow:0 0 25px var(--neon-cyan);}
+
+  .garage{z-index:1; width:100%; max-width:900px;}
+  .garage h2{font-family:'Orbitron',sans-serif; text-align:center; color:var(--neon-cyan); letter-spacing:3px; margin-bottom:1rem; font-size:1.1rem;}
+  .car-row{display:flex; gap:14px; overflow-x:auto; padding:8px 4px 20px;}
+  .car-card{
+    flex:0 0 200px; background:linear-gradient(160deg, rgba(255,255,255,0.06), rgba(0,0,0,0.3));
+    border:1px solid rgba(255,255,255,0.15); border-radius:10px; padding:14px; cursor:pointer; transition:.2s;
+  }
+  .car-card.selected{border-color:var(--neon-cyan); box-shadow:0 0 20px var(--neon-cyan);}
+  .car-card:hover{transform:translateY(-4px);}
+  .car-swatch{width:100%; height:60px; border-radius:6px; margin-bottom:10px;}
+  .car-name{font-weight:700; font-size:1rem; margin-bottom:6px;}
+  .stat-label{font-size:.7rem; letter-spacing:1px; color:#aaa; display:flex; justify-content:space-between;}
+  .stat-bar{height:5px; background:rgba(255,255,255,0.1); border-radius:3px; margin:2px 0 6px; overflow:hidden;}
+  .stat-fill{height:100%; border-radius:3px;}
+
+  #hud{position:fixed; inset:0; z-index:10; pointer-events:none; display:none; font-family:'Orbitron',sans-serif;}
+  #speedo{position:absolute; bottom:24px; right:24px; text-align:right;}
+  #speedo .val{font-size:2.6rem; font-weight:900; color:#fff; text-shadow:0 0 12px var(--neon-cyan);}
+  #speedo .unit{font-size:.9rem; color:var(--neon-cyan); letter-spacing:2px;}
+  #nitro-bar{position:absolute; bottom:100px; right:24px; width:180px; height:12px; background:rgba(255,255,255,0.1); border:1px solid var(--neon-cyan); border-radius:6px; overflow:hidden;}
+  #nitro-fill{height:100%; width:0%; background:linear-gradient(90deg,var(--neon-cyan),var(--neon-pink)); transition:width .1s;}
+  #drift-score{position:absolute; top:24px; left:24px; font-size:1.3rem; color:#fff; text-shadow:0 0 10px var(--neon-pink);}
+  #combo{position:absolute; top:60px; left:24px; font-size:1rem; color:var(--neon-pink); opacity:0; transition:.2s;}
+  #combo.show{opacity:1;}
+  #timer{position:absolute; top:24px; right:24px; font-size:1.3rem; color:var(--neon-cyan);}
+  #controls-hint{position:absolute; bottom:24px; left:24px; font-size:.75rem; color:rgba(255,255,255,0.5); line-height:1.6; letter-spacing:1px;}
+  #back-btn{position:absolute; top:24px; left:50%; transform:translateX(-50%); pointer-events:auto; background:rgba(0,0,0,0.5); border:1px solid rgba(255,255,255,0.3); color:#fff; padding:8px 18px; border-radius:20px; font-family:'Orbitron',sans-serif; font-size:.75rem; cursor:pointer; letter-spacing:1px;}
+</style>
+</head>
+<body>
+
+<div id="menu">
+  <svg class="skyline" viewBox="0 0 1200 400" preserveAspectRatio="none">
+    <defs><linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a0a2e"/><stop offset="1" stop-color="#0a0510"/></linearGradient></defs>
+    <rect x="0" y="120" width="70" height="280" fill="#150a25"/>
+    <rect x="90" y="60" width="50" height="340" fill="#1c0e30"/>
+    <rect x="160" y="150" width="90" height="250" fill="#150a25"/>
+    <rect x="270" y="40" width="40" height="360" fill="#1c0e30"/>
+    <rect x="330" y="100" width="120" height="300" fill="#150a25"/>
+    <rect x="470" y="20" width="30" height="380" fill="#22103a"/>
+    <rect x="520" y="80" width="70" height="320" fill="#1c0e30"/>
+    <rect x="610" y="140" width="100" height="260" fill="#150a25"/>
+    <rect x="730" y="50" width="45" height="350" fill="#1c0e30"/>
+    <rect x="790" y="110" width="130" height="290" fill="#150a25"/>
+    <rect x="940" y="30" width="35" height="370" fill="#22103a"/>
+    <rect x="990" y="90" width="80" height="310" fill="#1c0e30"/>
+    <rect x="1090" y="160" width="110" height="240" fill="#150a25"/>
+    <g fill="#ff2ea6" opacity="0.85">
+      <rect x="100" y="90" width="6" height="6"/><rect x="115" y="130" width="6" height="6"/>
+      <rect x="340" y="140" width="6" height="6"/><rect x="360" y="180" width="6" height="6"/>
+      <rect x="800" y="150" width="6" height="6"/><rect x="850" y="200" width="6" height="6"/>
+    </g>
+    <g fill="#20e8ff" opacity="0.85">
+      <rect x="480" y="60" width="6" height="6"/><rect x="620" y="180" width="6" height="6"/>
+      <rect x="1000" y="130" width="6" height="6"/><rect x="1120" y="200" width="6" height="6"/>
+    </g>
+  </svg>
+
+  <h1 class="title">NEON DRIFT</h1>
+  <div class="subtitle">MIDNIGHT CIRCUIT &mdash; LIVE THE LEGEND OF THE STREETS</div>
+
+  <div class="menu-buttons">
+    <button class="nbtn primary" onclick="startGame()">▶ RACE NOW</button>
+    <button class="nbtn" onclick="startGame()">DRIFT PRACTICE</button>
+    <button class="nbtn" disabled style="opacity:.4;cursor:default;">SETTINGS</button>
+    <button class="nbtn" disabled style="opacity:.4;cursor:default;">LEADERBOARD</button>
+  </div>
+
+  <div class="garage">
+    <h2>SELECT YOUR RIDE</h2>
+    <div class="car-row" id="carRow"></div>
+  </div>
+</div>
+
+<div id="hud">
+  <button id="back-btn" onclick="quitToMenu()" style="pointer-events:auto;">◀ EXIT TO MENU</button>
+  <div id="drift-score">DRIFT SCORE: <span id="scoreVal">0</span></div>
+  <div id="combo">COMBO x<span id="comboVal">1</span>!</div>
+  <div id="timer">TIME: <span id="timeVal">00:00</span></div>
+  <div id="speedo"><span class="val" id="speedVal">0</span><br><span class="unit">KM/H</span></div>
+  <div id="nitro-bar"><div id="nitro-fill"></div></div>
+  <div id="controls-hint">
+    W/&uarr; ACCELERATE &nbsp; S/&darr; BRAKE &nbsp; A D / &larr; &rarr; STEER<br>
+    SPACE HANDBRAKE DRIFT &nbsp; SHIFT NITRO BOOST &nbsp; R RESET
+  </div>
+</div>
+
+<div id="canvas-wrap"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ---------- CAR ROSTER (original, fictional) ----------
+const CARS = [
+  {name:"Kitsune GT", color:0xff2ea6, speed:9, drift:7, accel:7},
+  {name:"Ronin Turbo", color:0x20e8ff, speed:8, drift:10, accel:8},
+  {name:"Oni Veil", color:0x8a2eff, speed:8, drift:10, accel:7},
+  {name:"Shuriken MK4", color:0xffb020, speed:9, drift:8, accel:8},
+  {name:"Sakura S15", color:0xff5f9e, speed:7, drift:10, accel:9},
+  {name:"Dragon Charge", color:0x2effa0, speed:8, drift:6, accel:6},
+];
+let selectedCar = 0;
+
+function statBar(v,color){return `<div class="stat-bar"><div class="stat-fill" style="width:${v*10}%;background:${color}"></div></div>`;}
+
+function buildGarage(){
+  const row = document.getElementById('carRow');
+  row.innerHTML = CARS.map((c,i)=>`
+    <div class="car-card ${i===selectedCar?'selected':''}" onclick="pickCar(${i})">
+      <div class="car-swatch" style="background:linear-gradient(135deg,#${c.color.toString(16).padStart(6,'0')},#111)"></div>
+      <div class="car-name">${c.name}</div>
+      <div class="stat-label"><span>SPEED</span><span>${c.speed}/10</span></div>${statBar(c.speed,'#20e8ff')}
+      <div class="stat-label"><span>DRIFT</span><span>${c.drift}/10</span></div>${statBar(c.drift,'#ff2ea6')}
+      <div class="stat-label"><span>ACCEL</span><span>${c.accel}/10</span></div>${statBar(c.accel,'#8a2eff')}
+    </div>`).join('');
+}
+function pickCar(i){ selectedCar=i; buildGarage(); }
+buildGarage();
+
+// ---------- THREE.JS SETUP ----------
+let scene, camera, renderer, clock;
+let carGroup, wheelFL, wheelFR;
+let running=false, raceStart=0;
+let keys={};
+const state = {
+  x:0, z:0, heading:0, speed:0, steerAngle:0,
+  drifting:false, driftAngleDiff:0, driftScore:0, combo:1, comboTimer:0,
+  nitro:100, nitroActive:false
+};
+const track = { radius: 90, width: 26 };
+let smokeParticles = [];
+
+function initThree(){
+  scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x0a0518, 0.006);
+  camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.1, 2000);
+  renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  document.getElementById('canvas-wrap').appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0x554488, 0.6));
+  const moon = new THREE.DirectionalLight(0x8899ff, 0.5);
+  moon.position.set(-50,80,-30); scene.add(moon);
+
+  buildGround();
+  buildCity();
+  buildCar();
+  clock = new THREE.Clock();
+  window.addEventListener('resize', ()=>{
+    camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+}
+
+function buildGround(){
+  const groundGeo = new THREE.PlaneGeometry(2000,2000);
+  const groundMat = new THREE.MeshStandardMaterial({color:0x0c0a18, roughness:0.9});
+  const ground = new THREE.Mesh(groundGeo, groundMat);
+  ground.rotation.x = -Math.PI/2; scene.add(ground);
+
+  // circular neon race track (ring road)
+  const segs=64;
+  const trackShape = new THREE.RingGeometry(track.radius-track.width/2, track.radius+track.width/2, segs);
+  const trackMat = new THREE.MeshStandardMaterial({color:0x1a1826, roughness:0.6});
+  const trackMesh = new THREE.Mesh(trackShape, trackMat);
+  trackMesh.rotation.x=-Math.PI/2; trackMesh.position.y=0.01; scene.add(trackMesh);
+
+  // neon edge lines
+  [track.radius-track.width/2, track.radius+track.width/2].forEach((r,i)=>{
+    const pts=[];
+    for(let a=0;a<=segs;a++){const t=a/segs*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(t)*r,0.05,Math.sin(t)*r));}
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const mat = new THREE.LineBasicMaterial({color: i===0?0xff2ea6:0x20e8ff});
+    scene.add(new THREE.Line(geo, mat));
+  });
+}
+
+function buildCity(){
+  const colors=[0x150a25,0x1c0e30,0x22103a];
+  for(let i=0;i<80;i++){
+    const ang = Math.random()*Math.PI*2;
+    const dist = track.radius + track.width/2 + 20 + Math.random()*160;
+    const h = 20+Math.random()*80;
+    const w = 8+Math.random()*10;
+    const geo = new THREE.BoxGeometry(w,h,w);
+    const mat = new THREE.MeshStandardMaterial({color:colors[i%3], emissive:0x0a0515, roughness:0.7});
+    const b = new THREE.Mesh(geo,mat);
+    b.position.set(Math.cos(ang)*dist, h/2, Math.sin(ang)*dist);
+    scene.add(b);
+    // neon window strip
+    if(Math.random()>0.4){
+      const stripMat = new THREE.MeshBasicMaterial({color: Math.random()>0.5?0xff2ea6:0x20e8ff});
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(w*1.01,1.2,w*1.01), stripMat);
+      strip.position.set(b.position.x, h*(0.3+Math.random()*0.5), b.position.z);
+      scene.add(strip);
+    }
+  }
+  // streetlights along track
+  for(let a=0;a<Math.PI*2;a+=Math.PI/16){
+    const r = track.radius + track.width/2 + 3;
+    const poleMat = new THREE.MeshBasicMaterial({color:0x20e8ff});
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,6), poleMat);
+    pole.position.set(Math.cos(a)*r, 3, Math.sin(a)*r);
+    scene.add(pole);
+  }
+}
+
+function buildCar(){
+  const c = CARS[selectedCar];
+  carGroup = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({color:c.color, metalness:0.6, roughness:0.3});
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2,0.6,4), bodyMat);
+  body.position.y=0.6; carGroup.add(body);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.4,0.5,1.8), new THREE.MeshStandardMaterial({color:0x111111}));
+  cabin.position.set(0,1.05,-0.2); carGroup.add(cabin);
+  const wheelGeo = new THREE.CylinderGeometry(0.4,0.4,0.4,12);
+  const wheelMat = new THREE.MeshStandardMaterial({color:0x111111});
+  const wheelPositions = [[-0.9,0.4,1.2],[0.9,0.4,1.2],[-0.9,0.4,-1.2],[0.9,0.4,-1.2]];
+  carGroup.wheels=[];
+  wheelPositions.forEach(p=>{
+    const w = new THREE.Mesh(wheelGeo, wheelMat);
+    w.rotation.z=Math.PI/2; w.position.set(...p);
+    carGroup.add(w); carGroup.wheels.push(w);
+  });
+  // taillight glow
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.2,0.1), new THREE.MeshBasicMaterial({color:0xff2ea6}));
+  tail.position.set(0,0.6,2.0); carGroup.add(tail);
+  carGroup.position.set(track.radius,0,0);
+  scene.add(carGroup);
+}
+
+// ---------- INPUT ----------
+window.addEventListener('keydown', e=>{ keys[e.key.toLowerCase()]=true; if(e.key===' ')e.preventDefault(); if(e.key.toLowerCase()==='r') resetCar(); });
+window.addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
+
+function resetCar(){
+  state.x=track.radius; state.z=0; state.heading=Math.PI/2; state.speed=0;
+  state.driftScore=0; state.combo=1;
+}
+
+// ---------- GAME LOOP ----------
+function update(dt){
+  const c = CARS[selectedCar];
+  const accelPower = 8 + c.accel*1.2;
+  const maxSpeed = 30 + c.speed*4;
+  const turnRate = 1.6 + c.drift*0.08;
+
+  let throttle = 0;
+  if(keys['w']||keys['arrowup']) throttle = 1;
+  if(keys['s']||keys['arrowdown']) throttle = -0.6;
+  let steer = 0;
+  if(keys['a']||keys['arrowleft']) steer = 1;
+  if(keys['d']||keys['arrowright']) steer = -1;
+  const handbrake = keys[' '];
+  state.nitroActive = keys['shift'] && state.nitro>1;
+
+  // speed
+  state.speed += throttle*accelPower*dt;
+  state.speed -= state.speed*(handbrake?0.6:0.35)*dt; // drag
+  if(state.nitroActive){ state.speed += 22*dt; state.nitro -= 40*dt; }
+  else { state.nitro = Math.min(100, state.nitro + (state.drifting?18:6)*dt); }
+  state.speed = Math.max(-maxSpeed*0.4, Math.min(state.nitroActive?maxSpeed*1.4:maxSpeed, state.speed));
+
+  // steering & drift
+  const speedFactor = Math.min(1, Math.abs(state.speed)/10);
+  const targetTurn = steer*turnRate*speedFactor*(state.speed<0?-1:1);
+  state.steerAngle += (targetTurn - state.steerAngle)*Math.min(1,dt*6);
+
+  state.drifting = handbrake && Math.abs(state.speed)>6;
+  const driftFactor = state.drifting ? 2.6 : 1.0;
+  state.heading += state.steerAngle*dt*driftFactor;
+
+  // slip angle drives visible drift + scoring
+  const moveHeading = state.heading + (state.drifting? state.steerAngle*0.5 : 0);
+  state.x += Math.sin(moveHeading)*state.speed*dt;
+  state.z += Math.cos(moveHeading)*state.speed*dt;
+
+  if(state.drifting){
+    state.driftScore += Math.abs(state.steerAngle)*Math.abs(state.speed)*dt*8;
+    state.comboTimer = 1.2;
+  } else if(state.comboTimer>0){
+    state.comboTimer -= dt;
+    if(state.comboTimer<=0){ state.combo=1; document.getElementById('combo').classList.remove('show'); }
+  }
+  if(state.drifting){
+    document.getElementById('combo').classList.add('show');
+  }
+
+  // keep near track ring loosely (soft boundary)
+  const distFromCenter = Math.hypot(state.x, state.z);
+  const minR = track.radius - track.width/2 + 1, maxR = track.radius + track.width/2 - 1;
+  if(distFromCenter < minR || distFromCenter > maxR){
+    const clamped = Math.max(minR, Math.min(maxR, distFromCenter));
+    const ang = Math.atan2(state.x, state.z);
+    state.x = Math.sin(ang)*clamped; state.z = Math.cos(ang)*clamped;
+    state.speed *= 0.7;
+  }
+
+  // update car mesh
+  carGroup.position.set(state.x, 0, state.z);
+  carGroup.rotation.y = moveHeading;
+  carGroup.wheels[0].rotation.y = carGroup.wheels[1].rotation.y = state.steerAngle*0.5;
+  const spin = state.speed*dt*2;
+  carGroup.wheels.forEach(w=>w.rotation.x += spin);
+
+  // camera follow
+  const camDist=8, camHeight=3.5;
+  const camX = state.x - Math.sin(moveHeading)*camDist;
+  const camZ = state.z - Math.cos(moveHeading)*camDist;
+  camera.position.lerp(new THREE.Vector3(camX, camHeight + (state.nitroActive?0.3:0), camZ), Math.min(1,dt*5));
+  camera.lookAt(state.x, 1.2, state.z);
+  camera.fov = state.nitroActive ? 82 : 70;
+  camera.updateProjectionMatrix();
+
+  // HUD
+  document.getElementById('speedVal').textContent = Math.round(Math.abs(state.speed)*3.2);
+  document.getElementById('scoreVal').textContent = Math.floor(state.driftScore);
+  document.getElementById('comboVal').textContent = state.combo;
+  document.getElementById('nitro-fill').style.width = state.nitro+'%';
+  const elapsed = running ? (performance.now()-raceStart)/1000 : 0;
+  const mm = String(Math.floor(elapsed/60)).padStart(2,'0');
+  const ss = String(Math.floor(elapsed%60)).padStart(2,'0');
+  document.getElementById('timeVal').textContent = `${mm}:${ss}`;
+}
+
+function animate(){
+  if(!running) return;
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, clock.getDelta());
+  update(dt);
+  renderer.render(scene, camera);
+}
+
+// ---------- FLOW ----------
+function startGame(){
+  document.getElementById('menu').style.display='none';
+  document.getElementById('hud').style.display='block';
+  if(!scene) initThree();
+  else { scene.remove(carGroup); buildCar(); }
+  resetCar();
+  running=true; raceStart=performance.now();
+  clock.start();
+  animate();
+}
+function quitToMenu(){
+  running=false;
+  document.getElementById('hud').style.display='none';
+  document.getElementById('menu').style.display='flex';
+}
+</script>
+</body>
+</html>
